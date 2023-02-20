@@ -48,6 +48,7 @@ class TextClassifier(object):
         self.predictor, self.input_tensor, self.output_tensors, _ = \
             utility.create_predictor(args, 'cls', logger)
         self.use_onnx = args.use_onnx
+        self.use_openvino = args.use_openvino
 
     def resize_norm_img(self, img):
         imgC, imgH, imgW = self.cls_image_shape
@@ -106,6 +107,8 @@ class TextClassifier(object):
                 input_dict[self.input_tensor.name] = norm_img_batch
                 outputs = self.predictor.run(self.output_tensors, input_dict)
                 prob_out = outputs[0]
+            elif self.use_openvino:
+                prob_out = self.predictor([norm_img_batch])[self.output_tensors[0]]
             else:
                 self.input_tensor.copy_from_cpu(norm_img_batch)
                 self.predictor.run()

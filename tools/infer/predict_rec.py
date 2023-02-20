@@ -120,6 +120,7 @@ class TextRecognizer(object):
             utility.create_predictor(args, 'rec', logger)
         self.benchmark = args.benchmark
         self.use_onnx = args.use_onnx
+        self.use_openvino = args.use_openvino
         if args.benchmark:
             import auto_log
             pid = os.getpid()
@@ -175,7 +176,6 @@ class TextRecognizer(object):
             w = self.input_tensor.shape[3:][0]
             if w is not None and w > 0:
                 imgW = w
-
         h, w = img.shape[:2]
         ratio = w / float(h)
         if math.ceil(imgH * ratio) > imgW:
@@ -603,6 +603,8 @@ class TextRecognizer(object):
                     outputs = self.predictor.run(self.output_tensors,
                                                  input_dict)
                     preds = outputs[0]
+                elif self.use_openvino:
+                    preds = self.predictor([norm_img_batch])[self.output_tensors[0]]               
                 else:
                     self.input_tensor.copy_from_cpu(norm_img_batch)
                     self.predictor.run()

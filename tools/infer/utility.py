@@ -38,6 +38,7 @@ def init_args():
     parser.add_argument("--use_xpu", type=str2bool, default=False)
     parser.add_argument("--use_npu", type=str2bool, default=False)
     parser.add_argument("--ir_optim", type=str2bool, default=True)
+    parser.add_argument("--use_openvino", type=str2bool, default=False)
     parser.add_argument("--use_tensorrt", type=str2bool, default=False)
     parser.add_argument("--min_subgraph_size", type=int, default=15)
     parser.add_argument("--precision", type=str, default="fp32")
@@ -184,7 +185,34 @@ def create_predictor(args, mode, logger):
                 model_file_path))
         sess = ort.InferenceSession(model_file_path)
         return sess, sess.get_inputs()[0], None, None
-
+    elif args.use_openvino:
+        file_names = ['model', 'inference']
+        for file_name in file_names:
+            model_file_path = '{}/{}.pdmodel'.format(model_dir, file_name)
+            params_file_path = '{}/{}.pdiparams'.format(model_dir, file_name)
+            onnx_file_path = '{}/{}.onnx'.format(model_dir, file_name)
+            if (os.path.exists(model_file_path) and os.path.exists(
+                    params_file_path)) or os.path.exists(onnx_file_path):
+                break
+        if not os.path.exists(model_file_path) and not os.path.exists(onnx_file_path):
+            raise ValueError(
+                "not find model.pdmodel or inference.pdmodel or model.onnx or inference.onnx in {}".format(
+                    model_dir))
+        if not os.path.exists(params_file_path) and not os.path.exists(onnx_file_path):
+            raise ValueError(
+                "not find model.pdiparams or inference.pdiparams in {}".format(
+                    model_dir))
+            
+        import openvino.runtime as ov
+        core = ov.Core()
+        if os.path.exists(onnx_file_path):
+            compiled_model = core.compile_model(onnx_file_path, "AUTO")
+        else:
+            compiled_model = core.compile_model(model_file_path, "AUTO")
+            
+        input_layer = compiled_model.inputs
+        output_layer = compiled_model.outputs
+        return compiled_model, input_layer, output_layer, None
     else:
         file_names = ['model', 'inference']
         for file_name in file_names:

@@ -66,6 +66,7 @@ class LayoutPredictor(object):
         self.postprocess_op = build_post_process(postprocess_params)
         self.predictor, self.input_tensor, self.output_tensors, self.config = \
             utility.create_predictor(args, 'layout', logger)
+        self.use_openvino = args.use_openvino
 
     def __call__(self, img):
         ori_im = img.copy()
@@ -81,20 +82,25 @@ class LayoutPredictor(object):
 
         preds, elapse = 0, 1
         starttime = time.time()
-
-        self.input_tensor.copy_from_cpu(img)
-        self.predictor.run()
-
         np_score_list, np_boxes_list = [], []
-        output_names = self.predictor.get_output_names()
-        num_outs = int(len(output_names) / 2)
-        for out_idx in range(num_outs):
-            np_score_list.append(
-                self.predictor.get_output_handle(output_names[out_idx])
-                .copy_to_cpu())
-            np_boxes_list.append(
-                self.predictor.get_output_handle(output_names[
-                    out_idx + num_outs]).copy_to_cpu())
+        if self.use_openvino:
+            outputs = self.predictor([img])
+            num_outs = int(len(outputs) / 2)
+            for out_idx in range(num_outs):
+                np_score_list.append(outputs[self.output_tensors[out_idx]])
+                np_boxes_list.append(outputs[self.output_tensors[out_idx + num_outs]])
+        else:
+            self.input_tensor.copy_from_cpu(img)
+            self.predictor.run()
+            output_names = self.predictor.get_output_names()
+            num_outs = int(len(output_names) / 2)
+            for out_idx in range(num_outs):
+                np_score_list.append(
+                    self.predictor.get_output_handle(output_names[out_idx])
+                    .copy_to_cpu())
+                np_boxes_list.append(
+                    self.predictor.get_output_handle(output_names[
+                        out_idx + num_outs]).copy_to_cpu())
         preds = dict(boxes=np_score_list, boxes_num=np_boxes_list)
 
         post_preds = self.postprocess_op(ori_im, img, preds)

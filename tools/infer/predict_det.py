@@ -39,6 +39,7 @@ class TextDetector(object):
         self.args = args
         self.det_algorithm = args.det_algorithm
         self.use_onnx = args.use_onnx
+        self.use_openvino = args.use_openvino
         pre_process_list = [{
             'DetResizeForTest': {
                 'limit_side_len': args.det_limit_side_len,
@@ -142,13 +143,19 @@ class TextDetector(object):
             args, 'det', logger)
 
         if self.use_onnx:
-            img_h, img_w = self.input_tensor.shape[2:]
+            img_h, img_w = self.input_tensor[0].partial_shape[2:]
             if img_h is not None and img_w is not None and img_h > 0 and img_w > 0:
                 pre_process_list[0] = {
                     'DetResizeForTest': {
                         'image_shape': [img_h, img_w]
                     }
                 }
+        elif self.use_openvino:
+            pre_process_list[0] = {
+                'DetResizeForTest': {
+                    'image_shape': [640, 640]
+                }
+            }
         self.preprocess_op = create_operators(pre_process_list)
 
         if args.benchmark:
@@ -238,10 +245,14 @@ class TextDetector(object):
             input_dict = {}
             input_dict[self.input_tensor.name] = img
             outputs = self.predictor.run(self.output_tensors, input_dict)
+        elif self.use_openvino:
+            outputs = list(self.predictor([img]).values())
         else:
             self.input_tensor.copy_from_cpu(img)
             self.predictor.run()
             outputs = []
+            
+            
             for output_tensor in self.output_tensors:
                 output = output_tensor.copy_to_cpu()
                 outputs.append(output)
