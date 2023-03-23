@@ -150,12 +150,6 @@ class TextDetector(object):
                         'image_shape': [img_h, img_w]
                     }
                 }
-        elif self.use_openvino:
-            pre_process_list[0] = {
-                'DetResizeForTest': {
-                    'image_shape': [640, 640]
-                }
-            }
         self.preprocess_op = create_operators(pre_process_list)
 
         if args.benchmark:
